@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LethalOrca — Spin & Win</title>
+<style>
+  :root{
+    --abyss:#061019;
+    --deep:#0B2036;
+    --tide:#0F3654;
+    --gold:#FFC94D;
+    --gold-deep:#E8A317;
+    --cyan:#3FE3E0;
+    --coral:#FF6B4A;
+    --ink:#EAF2F6;
+    --ink-dim:#8FA6B5;
+    --font-display: 'Baloo 2', 'Segoe UI', sans-serif;
+    --font-body: 'Inter', 'Segoe UI', sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(63,227,224,0.12), transparent 60%),
+      radial-gradient(ellipse at 20% 110%, rgba(255,201,77,0.08), transparent 50%),
+      linear-gradient(180deg, var(--abyss), var(--deep) 60%, var(--tide));
+    font-family: var(--font-body);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 16px 60px;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* ambient bubbles */
+  .bubble{
+    position:fixed; bottom:-40px; border-radius:50%;
+    background:rgba(63,227,224,0.10);
+    border:1px solid rgba(63,227,224,0.25);
+    animation:rise linear infinite;
+    pointer-events:none;
+  }
+  @keyframes rise{
+    to{ transform:translateY(-110vh) translateX(var(--drift,20px)); opacity:0; }
+  }
+
+  header{
+    width:100%; max-width:520px;
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:18px; z-index:2;
+  }
+  .brand{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--font-display); font-weight:800; font-size:1.15rem;
+    letter-spacing:0.5px;
+  }
+  .brand .fin{
+    width:22px; height:22px; background:var(--cyan); clip-path:polygon(50% 0%, 0% 100%, 100% 100%);
+    filter:drop-shadow(0 0 6px var(--cyan));
+  }
+  .brand span.lethal{color:var(--ink);}
+  .brand span.orca{color:var(--gold);}
+
+  #walletBtn{
+    background:linear-gradient(135deg, var(--cyan), #1f9d9a);
+    color:#04211f; border:none; padding:9px 16px; border-radius:999px;
+    font-weight:700; font-size:0.85rem; cursor:pointer;
+    box-shadow:0 4px 14px rgba(63,227,224,0.35);
+    transition:transform .15s ease;
+  }
+  #walletBtn:active{ transform:scale(0.96); }
+  #walletBtn.connected{
+    background:rgba(255,255,255,0.06); color:var(--ink);
+    border:1px solid rgba(255,255,255,0.15); box-shadow:none;
+  }
+
+  .balance-pill{
+    display:flex; align-items:center; gap:6px;
+    background:rgba(255,201,77,0.08);
+    border:1px solid rgba(255,201,77,0.3);
+    padding:8px 14px; border-radius:999px; margin-bottom:26px;
+    font-weight:700; font-size:0.95rem; z-index:2;
+  }
+  .balance-pill .coin-dot{
+    width:16px; height:16px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff6d8, var(--gold) 55%, var(--gold-deep));
+  }
+
+  .wheel-stage{
+    position:relative; width:min(340px, 84vw); aspect-ratio:1/1;
+    margin-bottom:22px; z-index:2;
+  }
+  .pointer{
+    position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+    width:0; height:0; z-index:5;
+    border-left:14px solid transparent;
+    border-right:14px solid transparent;
+    border-top:24px solid var(--gold);
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  }
+  .rim{
+    position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(from 0deg, var(--gold), #fff2c4, var(--gold-deep), var(--gold));
+    padding:10px;
+    box-shadow:0 0 0 3px rgba(255,201,77,0.25), 0 10px 40px rgba(0,0,0,0.5);
+  }
+  #wheel{
+    width:100%; height:100%; border-radius:50%; display:block;
+    transition: transform 4.5s cubic-bezier(.12,.72,.14,1);
+    background:var(--abyss);
+  }
+  .hub{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:58px; height:58px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff6d8, var(--gold) 55%, var(--gold-deep));
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:800; color:#3a2400; font-size:0.7rem;
+    box-shadow:0 0 0 4px var(--deep), 0 4px 12px rgba(0,0,0,0.5);
+    z-index:4;
+  }
+
+  #spinBtn{
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color:#3a2400; border:none; padding:15px 46px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700; font-size:1.15rem;
+    letter-spacing:0.5px; cursor:pointer; z-index:2;
+    box-shadow:0 6px 20px rgba(255,201,77,0.35);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  #spinBtn:active{ transform:scale(0.96); }
+  #spinBtn:disabled{
+    background:rgba(255,255,255,0.08); color:var(--ink-dim);
+    box-shadow:none; cursor:not-allowed;
+  }
+
+  #status{
+    min-height:24px; margin-top:14px; font-weight:600; text-align:center; z-index:2;
+    color:var(--cyan);
+  }
+  #status.win{ color:var(--gold); font-size:1.05rem; }
+
+  .cooldown{
+    font-size:0.8rem; color:var(--ink-dim); margin-top:4px; z-index:2;
+  }
+
+  .disclaimer{
+    max-width:380px; margin-top:28px; z-index:2;
+    background:rgba(255,107,74,0.06);
+    border:1px solid rgba(255,107,74,0.22);
+    border-left:2px solid var(--coral);
+    border-radius:8px; padding:8px 12px;
+    font-size:0.68rem; line-height:1.4; color:var(--ink-dim);
+    text-align:center;
+  }
+  .disclaimer b{ color:var(--coral); }
+
+  footer{
+    margin-top:20px; font-size:0.72rem; color:var(--ink-dim); z-index:2;
+  }
+
+  .coin-fx{
+    position:fixed; top:0; left:0; font-size:22px; pointer-events:none; z-index:50;
+    animation:pop 1s ease-out forwards;
+  }
+  @keyframes pop{
+    0%{ transform:translateY(0) scale(0.6); opacity:1; }
+    100%{ transform:translateY(-140px) translateX(var(--dx,0px)) scale(1.1); opacity:0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><div class="fin"></div><span class="lethal">Lethal</span><span class="orca">Orca</span></div>
+  <button id="walletBtn">Connect Phantom</button>
+</header>
+
+<div class="balance-pill"><div class="coin-dot"></div><span id="balanceText">Connect wallet to view $LORCA</span></div>
+
+<div class="wheel-stage">
+  <div class="pointer"></div>
+  <div class="rim">
+    <svg id="wheel" viewBox="0 0 300 300"></svg>
+  </div>
+  <div class="hub">SPIN</div>
+</div>
+
+<button id="spinBtn" disabled>Connect Wallet</button>
+<div id="status"></div>
+<div class="cooldown" id="cooldownText"></div>
+
+<div class="disclaimer">
+  <b>Disclaimer:</b> LethalOrca Spin & Win is a fun, gamified reward feature built for our play-to-earn ecosystem. It has <b>no monetary value</b> and is not gambling, betting, or an investment product — spins simply generate in-game $LORCA token rewards as part of your play-to-earn activity. $LORCA is a utility/game token; nothing here is financial advice.
+  <br><br>
+  <span style="font-family:var(--font-body); opacity:0.9;">Yeh ek fun feature hai — iska kisi paisay ya sarmaya kari (investment) se koi taluk nahi. Sirf khel ke through $LORCA coin earn karne ke liye hai.</span>
+</div>
+
+<footer>lethalorca.com &middot; Solana Play-to-Earn</footer>
+
+<script>
+/* ================= CONFIG ================= */
+// Point these at your live Vercel backend (lethalorca-backend repo).
+// The server should own the RNG, weighting, and cooldown — never trust the client for the payout.
+const API_BASE = "https://your-backend.vercel.app"; // <-- replace with your real backend URL
+const ENDPOINTS = {
+  status: "/api/spin/status",   // GET  -> { canSpin, secondsLeft, balance }
+  spin:   "/api/spin/play",     // POST { wallet } -> { result, amount, balance }
+};
+const DEMO_MODE = true; // set to false once your endpoints above are live
+
+/* Segments must match your backend's weighting exactly (labels only affect the wheel drawing) */
+const SEGMENTS = [
+  { label: "0",    amount: 0,    weight: 30, color: "#0F3654" },
+  { label: "10",   amount: 10,   weight: 25, color: "#123B5E" },
+  { label: "20",   amount: 20,   weight: 18, color: "#0F3654" },
+  { label: "50",   amount: 50,   weight: 12, color: "#123B5E" },
+  { label: "100",  amount: 100,  weight: 8,  color: "#0F3654" },
+  { label: "250",  amount: 250,  weight: 4,  color: "#123B5E" },
+  { label: "500",  amount: 500,  weight: 2,  color: "#0F3654" },
+  { label: "JACKPOT\n1000", amount: 1000, weight: 1, color: "#7A1F1F" },
+];
+
+/* ================= STATE ================= */
+let wallet = null;
+let spinning = false;
+let cooldownTimer = null;
+
+/* ================= DRAW WHEEL ================= */
+const wheel = document.getElementById('wheel');
+const n = SEGMENTS.length;
+const R = 150, CX = 150, CY = 150;
+const anglePer = 360 / n;
+
+function polar(cx, cy, r, angleDeg){
+  const a = (angleDeg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+function buildWheel(){
+  let svg = "";
+  for(let i=0;i<n;i++){
+    const start = i * anglePer;
+    const end = start + anglePer;
+    const [x1,y1] = polar(CX,CY,R,start);
+    const [x2,y2] = polar(CX,CY,R,end);
+    const largeArc = anglePer > 180 ? 1 : 0;
+    svg += `<path d="M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${SEGMENTS[i].color}" stroke="#061019" stroke-width="1.5"/>`;
+    const mid = start + anglePer/2;
+    const [tx,ty] = polar(CX,CY,R*0.66,mid);
+    const lines = SEGMENTS[i].label.split("\n");
+    svg += `<g transform="translate(${tx},${ty}) rotate(${mid})">`;
+    lines.forEach((line, idx) => {
+      svg += `<text x="0" y="${idx*13 - (lines.length-1)*6}" text-anchor="middle" fill="#EAF2F6" font-size="15" font-weight="700" font-family="Baloo 2, sans-serif">${line}</text>`;
+    });
+    svg += `</g>`;
+  }
+  wheel.innerHTML = svg;
+}
+buildWheel();
+
+/* ================= WEIGHTED PICK (demo fallback only) ================= */
+function weightedPick(){
+  const total = SEGMENTS.reduce((s,x)=>s+x.weight,0);
+  let r = Math.random() * total;
+  for(let i=0;i<SEGMENTS.length;i++){
+    r -= SEGMENTS[i].weight;
+    if(r <= 0) return i;
+  }
+  return 0;
+}
+
+/* ================= PHANTOM WALLET ================= */
+const walletBtn = document.getElementById('walletBtn');
+const spinBtn = document.getElementById('spinBtn');
+const balanceText = document.getElementById('balanceText');
+const statusEl = document.getElementById('status');
+const cooldownText = document.getElementById('cooldownText');
+
+async function connectWallet(){
+  const provider = window?.solana;
+  if(!provider || !provider.isPhantom){
+    statusEl.textContent = "Phantom wallet not found — install it from phantom.app";
+    return;
+  }
+  try{
+    const resp = await provider.connect();
+    wallet = resp.publicKey.toString();
+    walletBtn.textContent = wallet.slice(0,4) + "…" + wallet.slice(-4);
+    walletBtn.classList.add('connected');
+    spinBtn.disabled = false;
+    spinBtn.textContent = "SPIN NOW";
+    refreshStatus();
+  }catch(e){
+    statusEl.textContent = "Wallet connection cancelled.";
+  }
+}
+walletBtn.addEventListener('click', ()=>{
+  if(!wallet) connectWallet();
+});
+
+/* ================= BACKEND CALLS ================= */
+async function refreshStatus(){
+  if(DEMO_MODE){
+    balanceText.textContent = "Balance: 1,240 $LORCA (demo)";
+    return;
+  }
+  try{
+    const r = await fetch(`${API_BASE}${ENDPOINTS.status}?wallet=${wallet}`);
+    const data = await r.json();
+    balanceText.textContent = `Balance: ${data.balance} $LORCA`;
+    if(!data.canSpin){
+      spinBtn.disabled = true;
+      startCooldownDisplay(data.secondsLeft);
+    }
+  }catch(e){
+    balanceText.textContent = "Could not reach LethalOrca backend.";
+  }
+}
+
+function startCooldownDisplay(seconds){
+  clearInterval(cooldownTimer);
+  let left = seconds;
+  cooldownTimer = setInterval(()=>{
+    left--;
+    if(left <= 0){
+      clearInterval(cooldownTimer);
+      cooldownText.textContent = "";
+      spinBtn.disabled = false;
+      return;
+    }
+    const m = Math.floor(left/60), s = left%60;
+    cooldownText.textContent = `Next spin in ${m}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+}
+
+async function requestSpinResult(){
+  if(DEMO_MODE){
+    // client-side simulation for preview only — real build must use server RNG
+    await new Promise(res=>setTimeout(res, 400));
+    const idx = weightedPick();
+    return { index: idx, amount: SEGMENTS[idx].amount };
+  }
+  const r = await fetch(`${API_BASE}${ENDPOINTS.spin}`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ wallet })
+  });
+  if(!r.ok) throw new Error("spin failed");
+  const data = await r.json();
+  const idx = SEGMENTS.findIndex(s => s.amount === data.amount);
+  return { index: idx >= 0 ? idx : 0, amount: data.amount, balance: data.balance, secondsLeft: data.secondsLeft };
+}
+
+/* ================= SPIN ANIMATION ================= */
+let currentRotation = 0;
+spinBtn.addEventListener('click', async ()=>{
+  if(spinning || !wallet) return;
+  spinning = true;
+  spinBtn.disabled = true;
+  statusEl.className = "";
+  statusEl.textContent = "Spinning…";
+
+  let result;
+  try{
+    result = await requestSpinResult();
+  }catch(e){
+    statusEl.textContent = "Could not reach LethalOrca backend. Try again.";
+    spinning = false;
+    spinBtn.disabled = false;
+    return;
+  }
+
+  const targetSegMid = result.index * anglePer + anglePer/2;
+  const extraSpins = 5 + Math.floor(Math.random()*2);
+  const finalRotation = currentRotation + (extraSpins*360) + (360 - targetSegMid);
+  currentRotation = finalRotation % 360;
+  wheel.style.transform = `rotate(${finalRotation}deg)`;
+
+  setTimeout(()=>{
+    spinning = false;
+    if(result.amount > 0){
+      statusEl.className = "win";
+      statusEl.textContent = `🎉 You won ${result.amount} $LORCA!`;
+      launchCoins();
+    }else{
+      statusEl.textContent = "No luck this time — spin again soon!";
+    }
+    if(DEMO_MODE){
+      spinBtn.disabled = false;
+    }else{
+      balanceText.textContent = `Balance: ${result.balance} $LORCA`;
+      startCooldownDisplay(result.secondsLeft || 3600);
+    }
+  }, 4600);
+});
+
+/* ================= FX: coin burst ================= */
+function launchCoins(){
+  const stage = document.querySelector('.wheel-stage').getBoundingClientRect();
+  for(let i=0;i<14;i++){
+    const c = document.createElement('div');
+    c.className = 'coin-fx';
+    c.textContent = '🪙';
+    c.style.left = (stage.left + stage.width/2 + (Math.random()*40-20)) + 'px';
+    c.style.top = (stage.top + stage.height/2) + 'px';
+    c.style.setProperty('--dx', (Math.random()*160-80)+'px');
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(), 1000);
+  }
+}
+
+/* ================= ambient bubbles ================= */
+for(let i=0;i<16;i++){
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  const size = 6 + Math.random()*18;
+  b.style.width = size+'px';
+  b.style.height = size+'px';
+  b.style.left = Math.random()*100+'vw';
+  b.style.setProperty('--drift', (Math.random()*60-30)+'px');
+  b.style.animationDuration = (8+Math.random()*10)+'s';
+  b.style.animationDelay = (Math.random()*10)+'s';
+  document.body.appendChild(b);
+}
+</script>
+</body>
+</html>
