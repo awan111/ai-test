@@ -1,248 +1,445 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lethal Orca - Ocean Jump P2E</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #0b132b;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        h1 {
-            margin: 5px;
-            font-size: 24px;
-            color: #00f5d4;
-            text-shadow: 0 0 10px rgba(0,245,212,0.5);
-        }
-        canvas {
-            border: 4px solid #3a86ff;
-            box-shadow: 0 0 20px rgba(58,134,255,0.6);
-            background: linear-gradient(to bottom, #1d3557, #03045e);
-            border-radius: 10px;
-        }
-        .ui-panel {
-            margin-top: 10px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .token-badge {
-            color: #ff007f;
-            background: rgba(255, 0, 127, 0.1);
-            padding: 5px 12px;
-            border-radius: 20px;
-            border: 1px solid #ff007f;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LethalOrca Runner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#020b14;font-family:Segoe UI,Tahoma,sans-serif}
+#gameCanvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:0;left:0;width:100%;padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+.hud-box{background:rgba(4,18,30,.55);border:1px solid rgba(45,212,191,.35);backdrop-filter:blur(6px);border-radius:12px;padding:10px 16px;box-shadow:0 0 18px rgba(45,212,191,.15)}
+#score{color:#f5c451;font-size:22px;font-weight:700;letter-spacing:.5px;text-shadow:0 0 10px rgba(245,196,81,.5)}
+#scoreLabel{color:#7fe3d4;font-size:11px;letter-spacing:2px;text-transform:uppercase}
+#speedTag{color:#7fe3d4;font-size:12px;letter-spacing:1px;text-align:right}
+#centerMsg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:20;color:#eafffb}
+#centerMsg h1{font-size:38px;color:#f5c451;text-shadow:0 0 22px rgba(245,196,81,.6);letter-spacing:1px;margin-bottom:6px}
+#centerMsg p{color:#9fd8cf;font-size:14px;margin-bottom:18px;letter-spacing:.5px}
+#centerMsg .sub{color:#6fa89c;font-size:12px}
+button.playBtn{background:linear-gradient(135deg,#0f766e,#134e4a);color:#f5c451;border:1px solid #f5c451;padding:12px 30px;font-size:15px;letter-spacing:1px;border-radius:30px;cursor:pointer;box-shadow:0 0 20px rgba(245,196,81,.25);transition:transform .15s ease}
+button.playBtn:active{transform:scale(.95)}
+#tapHint{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);color:#7fe3d4;font-size:12px;letter-spacing:1.5px;opacity:.75;z-index:10;pointer-events:none}
+</style>
 </head>
 <body>
 
-    <h1>Lethal Orca: Ocean Jump</h1>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    
-    <div class="ui-panel">
-        Score: <span id="scoreVal">0</span> | <span class="token-badge">LORCA Earned: <span id="tokenVal">0.00</span></span>
-    </div>
+<div id="hud">
+  <div class="hud-box">
+    <div id="scoreLabel">LORCA COLLECTED</div>
+    <div id="score">0</div>
+  </div>
+  <div class="hud-box"><div id="speedTag">SPEED x1.0</div></div>
+</div>
+
+<div id="tapHint">TAP / SPACE / ↑ TO JUMP</div>
+
+<div id="centerMsg">
+  <h1>LETHAL ORCA</h1>
+  <p>Jump the reef. Catch the coins. Swim to the right.</p>
+  <button class="playBtn" id="startBtn">▶ START SWIM</button>
+  <div class="sub" style="margin-top:14px;">Each coin = 100 $LORCA</div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
 
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("gameCanvas");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
 
-// Game Variables
-let score = 0;
-let tokens = 0.0;
-let isGameOver = false;
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x03121f,.02);
+scene.background=new THREE.Color(0x03121f);
 
-// Orca (Player) on the right side moving/jumping
-let orca = {
-    x: 150,
-    y: 300,
-    width: 60,
-    height: 30,
-    dy: 0,
-    gravity: 0.6,
-    jumpPower: -11,
-    ground: 300,
-    isJumping: false
-};
+const camera=new THREE.PerspectiveCamera(52,window.innerWidth/window.innerHeight,.1,200);
+camera.position.set(0,3.4,13);
+camera.lookAt(0,1.6,0);
 
-// Obstacle (Rocks / Hazards) moving from right to left (so Orca faces right)
-let obstacle = {
-    x: 850,
-    y: 310,
-    width: 25,
-    height: 40,
-    speed: 5
-};
+scene.add(new THREE.AmbientLight(0x2a4a55,.9));
 
-// Coin Reward
-let coin = {
-    x: 950,
-    y: 220,
-    radius: 12,
-    speed: 5
-};
+const sun=new THREE.DirectionalLight(0xbfe9ff,.9);
+sun.position.set(5,12,6);
+sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+scene.add(sun);
 
-// Controls (Jump on Spacebar or Click)
-window.addEventListener("keydown", function(e) {
-    if (e.code === "Space") {
-        triggerJump();
-    }
+const goldRim=new THREE.PointLight(0xf5c451,1.2,30);
+goldRim.position.set(-6,4,4);
+scene.add(goldRim);
+
+const tealRim=new THREE.PointLight(0x2dd4bf,1,30);
+tealRim.position.set(6,2,4);
+scene.add(tealRim);
+
+const waterGeo=new THREE.PlaneGeometry(220,40,140,30);
+const waterMat=new THREE.MeshPhongMaterial({
+  color:0x0a4a52,shininess:90,specular:0x2dd4bf,
+  transparent:true,opacity:.92,side:THREE.DoubleSide
 });
-canvas.addEventListener("click", function() {
-    triggerJump();
+const water=new THREE.Mesh(waterGeo,waterMat);
+water.rotation.x=-Math.PI/2;
+water.position.y=0;
+water.receiveShadow=true;
+scene.add(water);
+
+const waterPosAttr=waterGeo.attributes.position;
+const waterBase=Float32Array.from(waterPosAttr.array);
+
+const abyssGeo=new THREE.PlaneGeometry(80,40);
+const abyssMat=new THREE.MeshBasicMaterial({color:0x010509});
+const abyss=new THREE.Mesh(abyssGeo,abyssMat);
+abyss.position.set(0,5,-30);
+scene.add(abyss);
+
+function buildOrca(){
+  const group=new THREE.Group();
+  const blackMat=new THREE.MeshStandardMaterial({color:0x0b0f14,roughness:.35,metalness:.25});
+  const whiteMat=new THREE.MeshStandardMaterial({color:0xeaf6f6,roughness:.4,metalness:.1});
+
+  const bodyGeo=new THREE.SphereGeometry(.62,32,24);
+  bodyGeo.scale(1,.82,1.9);
+  const body=new THREE.Mesh(bodyGeo,blackMat);
+  body.position.set(0,.55,0);
+  body.castShadow=true;
+  group.add(body);
+
+  const bellyGeo=new THREE.SphereGeometry(.5,24,16);
+  bellyGeo.scale(.85,.55,1.5);
+  const belly=new THREE.Mesh(bellyGeo,whiteMat);
+  belly.position.set(0,.28,.05);
+  group.add(belly);
+
+  const patchGeo=new THREE.SphereGeometry(.13,16,12);
+  patchGeo.scale(1,.6,.5);
+  const patchL=new THREE.Mesh(patchGeo,whiteMat);
+  patchL.position.set(.32,.78,.95);
+  patchL.rotation.y=.4;
+  group.add(patchL);
+
+  const patchR=patchL.clone();
+  patchR.position.x=-.32;
+  patchR.rotation.y=-.4;
+  group.add(patchR);
+
+  const snoutGeo=new THREE.SphereGeometry(.38,20,16);
+  snoutGeo.scale(.8,.75,1.1);
+  const snout=new THREE.Mesh(snoutGeo,blackMat);
+  snout.position.set(0,.55,1.55);
+  snout.castShadow=true;
+  group.add(snout);
+
+  const finGeo=new THREE.ConeGeometry(.28,.85,4);
+  finGeo.scale(.35,1,1);
+  const dorsalFin=new THREE.Mesh(finGeo,blackMat);
+  dorsalFin.position.set(0,1.15,-.05);
+  dorsalFin.rotation.z=-.15;
+  dorsalFin.castShadow=true;
+  group.add(dorsalFin);
+
+  const saddleGeo=new THREE.SphereGeometry(.32,16,12);
+  saddleGeo.scale(1,.4,.7);
+  const saddleMat=new THREE.MeshStandardMaterial({color:0x4a5a5f,roughness:.5});
+  const saddle=new THREE.Mesh(saddleGeo,saddleMat);
+  saddle.position.set(0,.95,-.55);
+  group.add(saddle);
+
+  const pecGeo=new THREE.SphereGeometry(.22,16,12);
+  pecGeo.scale(1.6,.28,.7);
+  const pecL=new THREE.Mesh(pecGeo,blackMat);
+  pecL.position.set(.55,.35,.5);
+  pecL.rotation.z=.5;
+  group.add(pecL);
+
+  const pecR=pecL.clone();
+  pecR.position.x=-.55;
+  pecR.rotation.z=-.5;
+  group.add(pecR);
+
+  const tailStockGeo=new THREE.CylinderGeometry(.16,.06,.65,12);
+  const tailStock=new THREE.Mesh(tailStockGeo,blackMat);
+  tailStock.position.set(0,.5,-1.35);
+  tailStock.rotation.x=Math.PI/2*.15;
+  group.add(tailStock);
+
+  const flukeGeo=new THREE.SphereGeometry(.4,16,8);
+  flukeGeo.scale(2.2,.15,.6);
+  const fluke=new THREE.Mesh(flukeGeo,blackMat);
+  fluke.position.set(0,.42,-1.75);
+  fluke.castShadow=true;
+  group.add(fluke);
+
+  const eyeGeo=new THREE.SphereGeometry(.045,8,8);
+  const eyeMat=new THREE.MeshStandardMaterial({color:0x000000,roughness:.1});
+  const eyeL=new THREE.Mesh(eyeGeo,eyeMat);
+  eyeL.position.set(.34,.8,1.05);
+  group.add(eyeL);
+
+  const eyeR=eyeL.clone();
+  eyeR.position.x=-.34;
+  group.add(eyeR);
+
+  group.userData.parts={body,dorsalFin,fluke,pecL,pecR};
+  group.scale.set(.85,.85,.85);
+  group.rotation.y=Math.PI/2;
+  return group;
+}
+
+const orca=buildOrca();
+scene.add(orca);
+
+const ORCA_X=-4.2;
+const groundY=.15;
+let velocityY=0;
+let isJumping=false;
+const GRAVITY=-.028;
+const JUMP_FORCE=.46;
+orca.position.set(ORCA_X,groundY,0);
+
+const SPAWN_X=15;
+const DESPAWN_X=-9;
+const obstacles=[];
+const coins=[];
+
+const obstacleMat=new THREE.MeshStandardMaterial({
+  color:0x2b3a3f,roughness:.8,metalness:.1,flatShading:true
 });
 
-function triggerJump() {
-    if (!orca.isJumping && !isGameOver) {
-        orca.dy = orca.jumpPower;
-        orca.isJumping = true;
-    } else if (isGameOver) {
-        resetGame();
-    }
+const coinMat=new THREE.MeshStandardMaterial({
+  color:0xf5c451,roughness:.25,metalness:.8,
+  emissive:0x4a2f00,emissiveIntensity:.4
+});
+
+function makeReef(){
+  const g=new THREE.Group();
+  const rocks=3+Math.floor(Math.random()*3);
+
+  for(let i=0;i<rocks;i++){
+    const s=.35+Math.random()*.4;
+    const geo=new THREE.DodecahedronGeometry(s,0);
+    const m=new THREE.Mesh(geo,obstacleMat);
+    m.position.set((Math.random()-.5)*.5,s*.6,(Math.random()-.5)*.6);
+    m.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+    m.castShadow=true;
+    g.add(m);
+  }
+
+  g.userData.radius=.75;
+  return g;
 }
 
-function resetGame() {
-    score = 0;
-    tokens = 0.0;
-    isGameOver = false;
-    obstacle.x = 850;
-    coin.x = 950;
-    loop();
+function makeCoin(){
+  const geo=new THREE.TorusGeometry(.32,.11,12,24);
+  const m=new THREE.Mesh(geo,coinMat);
+  m.rotation.x=Math.PI/2;
+  m.castShadow=true;
+  return m;
 }
 
-// Main Game Loop
-function update() {
-    if (isGameOver) return;
+let running=false;
+let gameOver=false;
+let score=0;
+const baseSpeed=.16;
+let speed=baseSpeed;
+let spawnTimer=0;
+let lastSpeedBump=0;
 
-    // Orca Physics
-    orca.dy += orca.gravity;
-    orca.y += orca.dy;
+const speedTag=document.getElementById("speedTag");
+const scoreEl=document.getElementById("score");
+const centerMsg=document.getElementById("centerMsg");
+const startBtn=document.getElementById("startBtn");
 
-    if (orca.y > orca.ground) {
-        orca.y = orca.ground;
-        orca.dy = 0;
-        orca.isJumping = false;
-    }
+function resetGame(){
+  obstacles.forEach(o=>scene.remove(o.mesh));
+  coins.forEach(c=>scene.remove(c.mesh));
 
-    // Move Obstacle & Coin towards left (giving feeling of rightward movement)
-    obstacle.x -= obstacle.speed;
-    if (obstacle.x < -30) {
-        obstacle.x = 850 + Math.random() * 200;
-        score += 10;
-    }
+  obstacles.length=0;
+  coins.length=0;
+  score=0;
+  speed=baseSpeed;
+  spawnTimer=0;
+  lastSpeedBump=0;
+  velocityY=0;
+  isJumping=false;
 
-    coin.x -= coin.speed;
-    if (coin.x < -30) {
-        coin.x = 850 + Math.random() * 300;
-        coin.y = 180 + Math.random() * 100;
-    }
+  orca.position.set(ORCA_X,groundY,0);
+  orca.rotation.z=0;
 
-    // Collision Detection with Coin (P2E Reward)
-    let dist = Math.hypot((orca.x + orca.width/2) - coin.x, (orca.y + orca.height/2) - coin.y);
-    if (dist < orca.width/2 + coin.radius) {
-        tokens += 1.50; // Earn reward tokens
-        coin.x = 900 + Math.random() * 200;
-        coin.y = 180 + Math.random() * 100;
-    }
-
-    // Collision Detection with Obstacle (Game Over)
-    if (
-        orca.x < obstacle.x + obstacle.width &&
-        orca.x + orca.width > obstacle.x &&
-        orca.y < obstacle.y + obstacle.height &&
-        orca.y + orca.height > obstacle.y
-    ) {
-        isGameOver = true;
-    }
-
-    // Update UI
-    document.getElementById("scoreVal").innerText = score;
-    document.getElementById("tokenVal").innerText = tokens.toFixed(2);
+  scoreEl.textContent="0";
+  speedTag.textContent="SPEED x1.0";
+  gameOver=false;
 }
 
-function draw() {
-    // Clear Screen (Ocean Background)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw Sea Floor / Horizon line
-    ctx.strokeStyle = "#00f5d4";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 335);
-    ctx.lineTo(800, 335);
-    ctx.stroke();
-
-    // Draw Lethal Orca (Sleek Shark-like body with dorsal fin)
-    ctx.fillStyle = "#111"; // Body
-    ctx.beginPath();
-    ctx.ellipse(orca.x + 30, orca.y + 15, 30, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Orca White Patch & Dorsal Fin
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.ellipse(orca.x + 25, orca.y + 18, 15, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#111"; // Fin
-    ctx.beginPath();
-    ctx.moveTo(orca.x + 20, orca.y);
-    ctx.lineTo(orca.x + 35, orca.y - 15);
-    ctx.lineTo(orca.x + 40, orca.y);
-    ctx.closePath();
-    ctx.fill();
-
-    // Draw Obstacle (Coral / Rock)
-    ctx.fillStyle = "#e63946";
-    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-
-    // Draw P2E Coin Reward ($LORCA token)
-    ctx.fillStyle = "#ffd166";
-    ctx.beginPath();
-    ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#d4af37";
-    ctx.font = "bold 12px Arial";
-    ctx.fillText("🪙", coin.x - 7, coin.y + 4);
-
-    // Game Over Overlay
-    if (isGameOver) {
-        ctx.fillStyle = "rgba(3, 4, 94, 0.85)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = "#ff007f";
-        ctx.font = "bold 32px Arial";
-        ctx.fillText("GAME OVER", 290, 180);
-        
-        ctx.fillStyle = "#fff";
-        ctx.font = "18px Arial";
-        ctx.fillText("Click or Press Space to Restart", 265, 230);
-    }
+function spawnObstacle(){
+  const reef=makeReef();
+  reef.position.set(SPAWN_X,0,(Math.random()-.5)*.6);
+  scene.add(reef);
+  obstacles.push({mesh:reef,radius:reef.userData.radius});
 }
 
-function loop() {
-    update();
-    draw();
-    if (!isGameOver) {
-        requestAnimationFrame(loop);
-    } else {
-        draw(); // draw final frame
-    }
+function spawnCoin(){
+  const coin=makeCoin();
+  coin.position.set(SPAWN_X,.9+Math.random()*.7,(Math.random()-.5)*.6);
+  scene.add(coin);
+  coins.push({mesh:coin,taken:false});
 }
 
-// Start Game Loop
-loop();
+function jump(){
+  if(!running||gameOver)return;
+  if(!isJumping){
+    isJumping=true;
+    velocityY=JUMP_FORCE;
+  }
+}
+
+function startGame(){
+  resetGame();
+  running=true;
+  centerMsg.style.display="none";
+}
+
+function endGame(){
+  running=false;
+  gameOver=true;
+  centerMsg.style.display="block";
+  centerMsg.innerHTML=`
+    <h1>ORCA DOWN</h1>
+    <p>You collected <span style="color:#f5c451">${score}</span> $LORCA</p>
+    <button class="playBtn" id="startBtn2">↻ SWIM AGAIN</button>
+    <div class="sub" style="margin-top:14px;">Reef strike — try again</div>
+  `;
+  document.getElementById("startBtn2").addEventListener("click",startGame);
+}
+
+startBtn.addEventListener("click",startGame);
+
+window.addEventListener("keydown",e=>{
+  if(e.code==="Space"||e.code==="ArrowUp"){
+    e.preventDefault();
+    jump();
+  }
+});
+
+window.addEventListener("touchstart",jump);
+window.addEventListener("mousedown",e=>{
+  if(e.target.tagName!=="BUTTON")jump();
+});
+
+function distXZ(a,b){
+  const dx=a.x-b.x;
+  const dz=a.z-b.z;
+  return Math.sqrt(dx*dx+dz*dz);
+}
+
+const clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const dt=Math.min(clock.getDelta(),.05);
+  const t=clock.elapsedTime;
+
+  for(let i=0;i<waterPosAttr.count;i++){
+    const ix=i*3;
+    const x=waterBase[ix];
+    const y=waterBase[ix+1];
+
+    waterPosAttr.array[ix+2]=
+      Math.sin(x*.15+t*1.6)*.12+
+      Math.cos(y*.3+t*1.1)*.08;
+  }
+
+  waterPosAttr.needsUpdate=true;
+
+  const parts=orca.userData.parts;
+  parts.fluke.rotation.y=Math.sin(t*9)*.35;
+  parts.pecL.rotation.y=Math.sin(t*4)*.15;
+  parts.pecR.rotation.y=-Math.sin(t*4)*.15;
+  parts.dorsalFin.rotation.z=-.15+Math.sin(t*9)*.03;
+
+  if(running&&!gameOver){
+    spawnTimer-=dt;
+
+    if(t-lastSpeedBump>8){
+      lastSpeedBump=t;
+      speed=Math.min(speed*1.14,baseSpeed*3.2);
+      speedTag.textContent="SPEED x"+(speed/baseSpeed).toFixed(1);
+    }
+
+    if(spawnTimer<=0){
+      spawnTimer=1.15-Math.min(speed*1.5,.7);
+      if(Math.random()<.65)spawnObstacle();
+      if(Math.random()<.75)spawnCoin();
+    }
+
+    if(isJumping){
+      orca.position.y+=velocityY;
+      velocityY+=GRAVITY;
+
+      if(orca.position.y<=groundY){
+        orca.position.y=groundY;
+        isJumping=false;
+        velocityY=0;
+      }
+    }
+
+    orca.rotation.z=isJumping?velocityY*.5:Math.sin(t*3)*.02;
+    orca.position.z=Math.sin(t*1.3)*.05;
+
+    for(let i=obstacles.length-1;i>=0;i--){
+      const o=obstacles[i];
+      o.mesh.position.x-=speed;
+
+      if(o.mesh.position.x<DESPAWN_X){
+        scene.remove(o.mesh);
+        obstacles.splice(i,1);
+        continue;
+      }
+
+      const closeEnough=distXZ(orca.position,o.mesh.position)<o.radius+.45;
+      const lowEnough=orca.position.y<.9;
+
+      if(closeEnough&&lowEnough)endGame();
+    }
+
+    for(let i=coins.length-1;i>=0;i--){
+      const c=coins[i];
+      c.mesh.position.x-=speed;
+      c.mesh.rotation.z+=.12;
+
+      if(c.mesh.position.x<DESPAWN_X){
+        scene.remove(c.mesh);
+        coins.splice(i,1);
+        continue;
+      }
+
+      const dx=Math.abs(c.mesh.position.x-orca.position.x);
+      const dy=Math.abs(c.mesh.position.y-(orca.position.y+.6));
+      const dz=Math.abs(c.mesh.position.z-orca.position.z);
+
+      if(!c.taken&&dx<.6&&dy<.7&&dz<.6){
+        c.taken=true;
+        score+=100;
+        scoreEl.textContent=score;
+        scene.remove(c.mesh);
+        coins.splice(i,1);
+      }
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+
+animate();
+
+window.addEventListener("resize",()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
 </script>
-
 </body>
 </html>
